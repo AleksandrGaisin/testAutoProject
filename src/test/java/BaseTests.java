@@ -1,3 +1,4 @@
+import controllers.SuperheroController;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
 import io.restassured.parsing.Parser;
@@ -5,19 +6,23 @@ import io.restassured.path.json.JsonPath;
 import io.restassured.response.Response;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Tags;
 import org.junit.jupiter.api.Test;
 import org.marvel.models.Superhero;
 
 import static io.restassured.RestAssured.given;
 import static org.marvel.Constants.BASE_URL;
-import static org.marvel.TestData.DEFAULT_HERO;
+import static org.marvel.TestData.*;
 
 public class BaseTests {
 
     SoftAssertions softly = new SoftAssertions();
+    SuperheroController controller = new SuperheroController();
+
 
     @Test
-    void simpleGetTest () {
+    void simpleGetTest() {
         var response = given().baseUri(BASE_URL).contentType(ContentType.JSON)
                 .when().get("/superheroes")
                 .then().statusCode(200).extract().response();
@@ -25,19 +30,21 @@ public class BaseTests {
     }
 
     @Test
-    void simplePostCheckJavaObjectTest() {
-        Response response = RestAssured.given().baseUri(BASE_URL).contentType(ContentType.JSON)
-                .body(DEFAULT_HERO)
-                .when().post("/superheroes")
-                .then().extract().response();
-        System.out.println(response.asPrettyString());
-        Superhero createdHero = response.as(Superhero.class);
-        System.out.println(createdHero);
-        Assertions.assertEquals(200, response.statusCode());
+    void simpleGetControllerTest() {
+        Response response = controller.getHero();
+        Assertions.assertEquals(200, response.getStatusCode());
+    }
+
+    @Test
+    void postControllerTest() {
+        Response response = controller.addHero();
+        int status = response.getStatusCode();
+        Superhero superhero = response.as(Superhero.class);
+        Assertions.assertEquals(200, status);
         SoftAssertions.assertSoftly(softly -> {
-            softly.assertThat(createdHero.getPhone()).as("Phone value is invalid").isEqualTo("+9959550431");
-            softly.assertThat(createdHero.getFullName()).as("Full name value is invalid").isEqualTo("Blade");
-            softly.assertThat(createdHero.getBirthDate()).as("Birth date value is invalid").isEqualTo("2002-03-15");
+            softly.assertThat(superhero.getPhone()).as("Phone value is invalid").isEqualTo("+9959550431");
+            softly.assertThat(superhero.getFullName()).as("Full name value is invalid").isEqualTo("Blade");
+            softly.assertThat(superhero.getBirthDate()).as("Birth date value is invalid").isEqualTo("2002-03-15");
             // Code without .assertAll()
         });
     }
@@ -58,33 +65,55 @@ public class BaseTests {
     }
 
     @Test
+    @Tags({@Tag("Failed"), @Tag("Flaky")})
     void simplePutHeroDataUpdate() {
         Response response = RestAssured.given().baseUri(BASE_URL).contentType(ContentType.JSON)
                 .body(DEFAULT_HERO)
                 .when().post("/superheroes")
                 .then().statusCode(200).extract().response();
         System.out.println(response.asPrettyString());
+        Superhero createdHeroObj = response.as(Superhero.class);
 
-        int createdHeroId = response.path("id");
-        Superhero createdHero = new Superhero();
-        createdHero.setId(createdHeroId);
+        int createdHeroId = createdHeroObj.getId();
+        Superhero createdHero = getUpdatedHero2(createdHeroId);
 
-        createdHero.setFullName("Updated Blade");
-        createdHero.setCity("Boston");
-        createdHero.setBirthDate("1990-01-01");
-        createdHero.setMainSkill("New Mortal skill");
-        createdHero.setGender("F");
-        createdHero.setPhone("88005500050");
-
-       given().baseUri(BASE_URL).contentType(ContentType.JSON)
+        given().baseUri(BASE_URL).contentType(ContentType.JSON)
                 .body(createdHero)
                 .when().put("/superheroes/" + createdHero.getId())
-                .then().statusCode(200).extract().response();
+                .then()
+                .extract().response();
 
         Response getResponse = given().baseUri(BASE_URL)
                 .contentType(ContentType.JSON)
                 .when().get("/superheroes/" + createdHero.getId())
                 .then().statusCode(200).extract().response();
+        Superhero updHero = getResponse.as(Superhero.class);
         System.out.println(getResponse.asPrettyString());
+
+
+        SoftAssertions.assertSoftly(softly -> {
+            softly.assertThat(updHero.getPhone()).isEqualTo(createdHero.getPhone());
+            softly.assertThat(updHero.getFullName()).isEqualTo(createdHero.getFullName());
+            softly.assertThat(updHero.getBirthDate()).isEqualTo(createdHero.getBirthDate());
+            // Code without .assertAll()
+        });
+
+
+    }
+
+    @Test
+    void simpleDeleteHero() {
+        Response response = controller.addHero();
+        Superhero superheroCreated = response.as(Superhero.class);
+        int createdHeroId = superheroCreated.getId();
+        int status = response.getStatusCode();
+        Assertions.assertEquals(200, status);
+
+        Response responseDelete = controller.deleteHero(createdHeroId);
+        Assertions.assertEquals(200, responseDelete.getStatusCode());
+
+        Response getResponse = controller.getHeroByID(createdHeroId);
+        System.out.println(superheroCreated);
+        Assertions.assertEquals(400, getResponse.getStatusCode());
     }
 }
