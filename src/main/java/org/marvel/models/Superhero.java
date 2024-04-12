@@ -2,12 +2,15 @@ package org.marvel.models;
 
 import lombok.*;
 
+
+
 @ToString
 @Getter
 @Setter
 @NoArgsConstructor
 @Builder
 @AllArgsConstructor
+
 public class Superhero {
     private int id;
     private String fullName;
